@@ -1,9 +1,9 @@
 [build]
-  command = "npm install && npm run build"
+  command = "chmod +x node_modules/.bin/vite && npm install && npm run build"
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "18"  # or your Node version
 
 [[redirects]]
   from = "/*"
