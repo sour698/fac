@@ -396,7 +396,7 @@ const Dashboard = () => {
   // ── Fetch from backend ─────────────────────────────────────────────────────
   const fetchFromBackend = useCallback(async () => {
     try {
-      const res  = await fetch('http://localhost:8000/prediction-data', { cache: 'no-store' });
+      const res  = await fetch('https://fac-2.onrender.com', { cache: 'no-store' });
       const data = await res.json();
       setBackendOnline(true);
       if (!data.has_data) return false;
