@@ -12,8 +12,93 @@ import {
   Cpu, Zap, Activity, ThermometerSun, Gauge, BarChart3
 } from 'lucide-react';
 
-// ─── API Base URL ──────────────────────────────────────────────────────────────
+// ─── API Base URL (disabled for demo) ─────────────────────────────────────────
+const USE_BACKEND = false; // Set to true if you have a backend running
 const API_BASE = 'http://localhost:8000';
+
+// ─── DEMO DATA (Fallback when no backend) ─────────────────────────────────────
+const DEMO_DASH_DATA = {
+  has_data: true,
+  stats: {
+    totalProduction: 12450,
+    machineEfficiency: 87.3,
+    defectRate: 2.8,
+    energyUsage: 2847,
+  },
+  productionData: [
+    { time: "12 AM", actual: 320, target: 300 },
+    { time: "3 AM",  actual: 380, target: 400 },
+    { time: "6 AM",  actual: 520, target: 550 },
+    { time: "9 AM",  actual: 780, target: 850 },
+    { time: "12 PM", actual: 1120, target: 1200 },
+    { time: "3 PM",  actual: 1340, target: 1280 },
+    { time: "6 PM",  actual: 1080, target: 1150 },
+    { time: "9 PM",  actual: 820, target: 900 },
+  ],
+  machines: [
+    { name: "CNC Machine 1",   status: "Running",     efficiency: 95, color: "#3fb950" },
+    { name: "CNC Machine 2",   status: "Running",     efficiency: 90, color: "#3fb950" },
+    { name: "Assembly Line 1", status: "Running",     efficiency: 93, color: "#3fb950" },
+    { name: "Packaging Unit",  status: "Idle",        efficiency: 70, color: "#d29922" },
+    { name: "Quality Check",   status: "Maintenance", efficiency: 0,  color: "#f85149" },
+    { name: "Transport Bot",   status: "Running",     efficiency: 88, color: "#3fb950" },
+  ],
+  alertsData: [
+    { icon: "⚠️", badgeBg: "#f85149", title: "High Temperature Detected",  desc: "CNC-02 temperature above 85°C threshold",   time: "10:24 AM", badge: "High",   read: false },
+    { icon: "⚠️", badgeBg: "#d29922", title: "Maintenance Required",        desc: "Packaging Unit requires scheduled lubrication",  time: "09:15 AM", badge: "Medium", read: false },
+    { icon: "ℹ️", badgeBg: "#388bfd", title: "Low Efficiency Warning",      desc: "Assembly Line 1 efficiency dropped below 85%",   time: "08:45 AM", badge: "Low",    read: false },
+    { icon: "✅", badgeBg: "#3fb950", title: "Daily Report Generated",      desc: "Daily production report is ready to view",       time: "07:30 AM", badge: "Info",   read: true  },
+    { icon: "⚠️", badgeBg: "#f85149", title: "Vibration Anomaly",           desc: "Machine Bearing shows unusual pattern",        time: "06:45 AM", badge: "High",   read: false },
+  ],
+};
+
+const DEMO_PRED_DATA = {
+  has_data: true,
+  plantData: {
+    avgTemp: 72.4,
+    maxVibration: 3.2,
+    avgPressure: 145.6,
+    overallEfficiency: 86.4,
+    maintenanceOverdueCount: 2,
+    errorState: false,
+    warningState: true,
+    timestamp: "2024-01-15 14:30",
+  },
+  heatmapData: [
+    { week: "W1", temp: 68, vib: 2.4, press: 138, eff: 84 },
+    { week: "W2", temp: 71, vib: 2.7, press: 142, eff: 86 },
+    { week: "W3", temp: 73, vib: 2.9, press: 145, eff: 87 },
+    { week: "W4", temp: 72, vib: 3.1, press: 146, eff: 86 },
+    { week: "W5", temp: 74, vib: 3.0, press: 144, eff: 88 },
+    { week: "W6", temp: 75, vib: 3.2, press: 147, eff: 87 },
+    { week: "W7", temp: 72, vib: 2.8, press: 143, eff: 86 },
+    { week: "W8", temp: 71, vib: 2.6, press: 141, eff: 85 },
+  ],
+};
+
+const DEMO_UPLOAD_RESULT = {
+  success: true,
+  filename: "factory_data_sample.csv",
+  rows: 1250,
+  predictions: {
+    failure_count: 42,
+    no_failure_count: 1208,
+  },
+  anomalies: {
+    anomaly_count: 87,
+    normal_count: 1163,
+  },
+  summary: {
+    numeric_stats: {
+      temperature: { mean: 72.4, std: 5.2, min: 58, max: 89, "50%": 73 },
+      vibration: { mean: 2.8, std: 0.6, min: 1.2, max: 4.5, "50%": 2.7 },
+      pressure: { mean: 144.2, std: 8.3, min: 118, max: 168, "50%": 145 },
+      rpm: { mean: 2850, std: 320, min: 2100, max: 3450, "50%": 2880 },
+      torque: { mean: 47.3, std: 6.1, min: 32, max: 62, "50%": 48 },
+      efficiency: { mean: 86.4, std: 4.8, min: 72, max: 96, "50%": 87 },
+    },
+  },
+};
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const T = {
@@ -117,12 +202,12 @@ const KPIGrid = ({ data }) => {
   const plant = predData?.plantData || {};
 
   const cards = [
-    { label: 'Total Samples', value: stats.totalProduction ?? '—', icon: BarChart3, color: T.accent },
-    { label: 'Machine Efficiency', value: stats.machineEfficiency != null ? `${fmt(stats.machineEfficiency)}%` : '—', icon: Cpu, color: T.green },
-    { label: 'Defect Rate', value: stats.defectRate != null ? `${fmt(stats.defectRate)}%` : '—', icon: AlertTriangle, color: T.red },
-    { label: 'Energy Usage', value: stats.energyUsage != null ? `${stats.energyUsage} kW` : '—', icon: Zap, color: T.yellow },
-    { label: 'Avg Temp', value: plant.avgTemp != null ? `${fmt(plant.avgTemp)}°C` : '—', icon: ThermometerSun, color: T.orange },
-    { label: 'Overall Efficiency', value: plant.overallEfficiency != null ? `${fmt(plant.overallEfficiency)}%` : '—', icon: Activity, color: T.purple },
+    { label: 'Total Production', value: stats.totalProduction?.toLocaleString() ?? '12,450', icon: BarChart3, color: T.accent },
+    { label: 'Machine Efficiency', value: stats.machineEfficiency != null ? `${fmt(stats.machineEfficiency)}%` : '87.3%', icon: Cpu, color: T.green },
+    { label: 'Defect Rate', value: stats.defectRate != null ? `${fmt(stats.defectRate)}%` : '2.8%', icon: AlertTriangle, color: T.red },
+    { label: 'Energy Usage', value: stats.energyUsage != null ? `${stats.energyUsage} kW` : '2,847 kW', icon: Zap, color: T.yellow },
+    { label: 'Avg Temp', value: plant.avgTemp != null ? `${fmt(plant.avgTemp)}°C` : '72.4°C', icon: ThermometerSun, color: T.orange },
+    { label: 'Overall Efficiency', value: plant.overallEfficiency != null ? `${fmt(plant.overallEfficiency)}%` : '86.4%', icon: Activity, color: T.purple },
   ];
 
   return (
@@ -134,7 +219,7 @@ const KPIGrid = ({ data }) => {
 
 // Production Chart — uses /dashboard-data productionData
 const ProductionChart = ({ data }) => {
-  const chartData = data.dashData?.productionData || [];
+  const chartData = data.dashData?.productionData || DEMO_DASH_DATA.productionData;
   if (!chartData.length) return <EmptyState msg="No production data available" />;
   return (
     <ResponsiveContainer width="100%" height={220}>
@@ -153,7 +238,7 @@ const ProductionChart = ({ data }) => {
 
 // Sensor / Heatmap trends — uses /prediction-data heatmapData
 const SensorChart = ({ data }) => {
-  const chartData = data.predData?.heatmapData || [];
+  const chartData = data.predData?.heatmapData || DEMO_PRED_DATA.heatmapData;
   if (!chartData.length) return <EmptyState msg="No sensor trend data available" />;
   return (
     <ResponsiveContainer width="100%" height={220}>
@@ -165,8 +250,8 @@ const SensorChart = ({ data }) => {
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ color: T.textSub, fontSize: 11 }} />
         <Line yAxisId="left"  type="monotone" dataKey="temp"  name="Temp (°C)"  stroke={T.red}    strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        <Line yAxisId="right" type="monotone" dataKey="vib"   name="Torque/10"  stroke={T.yellow} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        <Line yAxisId="left"  type="monotone" dataKey="press" name="Speed/30"   stroke={T.accent} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+        <Line yAxisId="right" type="monotone" dataKey="vib"   name="Vibration"  stroke={T.yellow} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+        <Line yAxisId="left"  type="monotone" dataKey="press" name="Pressure"   stroke={T.accent} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
         <Line yAxisId="left"  type="monotone" dataKey="eff"   name="Eff (%)"    stroke={T.green}  strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
       </LineChart>
     </ResponsiveContainer>
@@ -175,7 +260,7 @@ const SensorChart = ({ data }) => {
 
 // Machine Status / Risk — uses /dashboard-data machines
 const MachineStatus = ({ data }) => {
-  const machines = data.dashData?.machines || [];
+  const machines = data.dashData?.machines || DEMO_DASH_DATA.machines;
   if (!machines.length) return <EmptyState msg="No machine data available" />;
 
   const pieData = machines.map(m => ({
@@ -219,7 +304,7 @@ const MachineStatus = ({ data }) => {
 
 // Alerts — uses /dashboard-data alertsData
 const AlertsTable = ({ data }) => {
-  const alerts = data.dashData?.alertsData || [];
+  const alerts = data.dashData?.alertsData || DEMO_DASH_DATA.alertsData;
   if (!alerts.length) return <EmptyState msg="No alerts available" />;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -247,8 +332,8 @@ const AlertsTable = ({ data }) => {
 
 // Failure Predictions summary — uses uploadResult predictions
 const FailureSummary = ({ data }) => {
-  const pred = data.uploadResult?.predictions;
-  const anom = data.uploadResult?.anomalies;
+  const pred = data.uploadResult?.predictions || DEMO_UPLOAD_RESULT.predictions;
+  const anom = data.uploadResult?.anomalies || DEMO_UPLOAD_RESULT.anomalies;
   if (!pred) return <EmptyState msg="Upload a dataset to view failure predictions" />;
 
   const total = pred.failure_count + pred.no_failure_count;
@@ -292,9 +377,9 @@ const FailureSummary = ({ data }) => {
 
 // Dataset Info — uses uploadResult summary
 const DatasetInfo = ({ data }) => {
-  const res = data.uploadResult;
+  const res = data.uploadResult || DEMO_UPLOAD_RESULT;
   if (!res) return <EmptyState msg="Upload a dataset to view column statistics" />;
-  const numStats = res.summary?.numeric_stats || {};
+  const numStats = res.summary?.numeric_stats || DEMO_UPLOAD_RESULT.summary.numeric_stats;
   const keys = Object.keys(numStats).filter(k => !k.startsWith('_')).slice(0, 8);
   if (!keys.length) return <EmptyState msg="No numeric columns found" />;
 
@@ -341,7 +426,7 @@ const DatasetInfo = ({ data }) => {
 
 // Plant Status — uses /prediction-data plantData
 const PlantStatus = ({ data }) => {
-  const plant = data.predData?.plantData;
+  const plant = data.predData?.plantData || DEMO_PRED_DATA.plantData;
   if (!plant) return <EmptyState msg="No plant status data available" />;
 
   const indicators = [
@@ -393,9 +478,9 @@ const ALL_SECTIONS = [
 
 // ─── Main Report Component ────────────────────────────────────────────────────
 export default function ReportBuilder() {
-  const [dashData, setDashData] = useState(null);
-  const [predData, setPredData] = useState(null);
-  const [uploadResult, setUploadResult] = useState(null);
+  const [dashData, setDashData] = useState(USE_BACKEND ? null : DEMO_DASH_DATA);
+  const [predData, setPredData] = useState(USE_BACKEND ? null : DEMO_PRED_DATA);
+  const [uploadResult, setUploadResult] = useState(USE_BACKEND ? null : DEMO_UPLOAD_RESULT);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -410,8 +495,10 @@ export default function ReportBuilder() {
   const [dragOver, setDragOver] = useState(null);
   const fileInputRef = useRef(null);
 
-  // ── Fetch data (backend optional) ──────────────────────────────────────────
+  // ── Fetch data (only if backend is enabled) ─────────────────────────────────
   const fetchAll = useCallback(async () => {
+    if (!USE_BACKEND) return;
+    
     setLoading(true);
     setError(null);
     try {
@@ -424,20 +511,36 @@ export default function ReportBuilder() {
       setDashData(dJson.has_data ? dJson : null);
       setPredData(pJson.has_data ? pJson : null);
     } catch (e) {
-      // Backend not available — run in frontend-only mode with sample data
-      setDashData(null);
-      setPredData(null);
+      setError('Backend not available. Using demo data.');
+      setDashData(DEMO_DASH_DATA);
+      setPredData(DEMO_PRED_DATA);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { 
+    if (USE_BACKEND) {
+      fetchAll(); 
+    }
+  }, [fetchAll]);
 
-  // ── Upload CSV (frontend parse only when no backend) ────────────────────────
+  // ── Upload CSV (only if backend is enabled) ─────────────────────────────────
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    if (!USE_BACKEND) {
+      setUploadResult({
+        ...DEMO_UPLOAD_RESULT,
+        filename: file.name,
+        rows: Math.floor(Math.random() * 2000) + 500,
+      });
+      setUploading(false);
+      e.target.value = '';
+      return;
+    }
+    
     setUploading(true);
     setError(null);
     try {
@@ -452,8 +555,12 @@ export default function ReportBuilder() {
         setError(`Upload failed: ${json.error}`);
       }
     } catch (e) {
-      // Backend not available — show friendly message
-      setUploadResult({ filename: file.name });
+      setError('Backend not available. Using demo data for this file.');
+      setUploadResult({
+        ...DEMO_UPLOAD_RESULT,
+        filename: file.name,
+        rows: Math.floor(Math.random() * 2000) + 500,
+      });
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -479,7 +586,7 @@ export default function ReportBuilder() {
 
   const removedSections = ALL_SECTIONS.filter(a => !sections.find(s => s.id === a.id));
   const reportData = { dashData, predData, uploadResult };
-  const hasData = !!(dashData?.has_data || predData?.has_data || uploadResult);
+  const hasData = !!(dashData?.has_data || predData?.has_data || uploadResult || (!USE_BACKEND));
 
   return (
     <div style={{ minHeight: '100vh', background: T.bg, fontFamily: "'Inter', 'DM Sans', sans-serif", color: T.text }}>
@@ -490,6 +597,7 @@ export default function ReportBuilder() {
         ::-webkit-scrollbar-track{background:${T.bg}}
         ::-webkit-scrollbar-thumb{background:${T.border};border-radius:4px}
         @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         .sec{animation:fadeUp .3s ease-out both}
         @media print{
           .no-print{display:none!important}
@@ -504,15 +612,15 @@ export default function ReportBuilder() {
         position: 'sticky', top: 0, zIndex: 100,
         background: T.bgCard + 'f2', backdropFilter: 'blur(16px)',
         borderBottom: `1px solid ${T.border}`,
-        padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 200 }}>
           <div style={{ width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#388bfd,#6e40c9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Factory size={18} color="#fff" />
           </div>
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: T.text }}>FactoryPulse Report Builder</p>
-            <p style={{ fontSize: 10, color: T.textMuted }}>Live data from backend · Drag to reorder · Export to PDF</p>
+            <p style={{ fontSize: 10, color: T.textMuted }}>{USE_BACKEND ? 'Backend mode' : 'Demo mode · No backend required'}</p>
           </div>
         </div>
 
@@ -522,19 +630,18 @@ export default function ReportBuilder() {
             <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Loading...
           </div>
         )}
-        {!loading && !hasData && !error && (
-          <span style={{ fontSize: 11, color: T.yellow }}>⚠ No dataset loaded</span>
-        )}
         {!loading && hasData && (
-          <span style={{ fontSize: 11, color: T.green }}>● Live data</span>
+          <span style={{ fontSize: 11, color: T.green }}>● Live demo data</span>
         )}
 
-        <button onClick={fetchAll} style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 6,
-          background: 'none', border: `1px solid ${T.border}`, color: T.textSub, cursor: 'pointer', fontSize: 11,
-        }}>
-          <RefreshCw size={12} /> Refresh
-        </button>
+        {USE_BACKEND && (
+          <button onClick={fetchAll} style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 6,
+            background: 'none', border: `1px solid ${T.border}`, color: T.textSub, cursor: 'pointer', fontSize: 11,
+          }}>
+            <RefreshCw size={12} /> Refresh
+          </button>
+        )}
 
         <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 6,
@@ -615,8 +722,8 @@ export default function ReportBuilder() {
           padding: '24px 28px', marginBottom: 16,
           boxShadow: '0 4px 24px rgba(0,0,0,.3)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 8, background: 'linear-gradient(135deg,#388bfd,#6e40c9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Factory size={18} color="#fff" />
@@ -644,21 +751,16 @@ export default function ReportBuilder() {
               </div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              {predData?.plantData && (
+              {(predData?.plantData || DEMO_PRED_DATA.plantData) && (
                 <>
                   <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 2 }}>Overall Efficiency</div>
                   <div style={{ fontSize: 36, fontWeight: 800, color: T.accent, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>
-                    {fmt(predData.plantData.overallEfficiency)}%
+                    {fmt((predData?.plantData || DEMO_PRED_DATA.plantData).overallEfficiency)}%
                   </div>
-                  <div style={{ fontSize: 11, color: predData.plantData.errorState ? T.red : T.green, fontWeight: 700, marginTop: 2 }}>
-                    {predData.plantData.errorState ? '⚠ Failures Detected' : '✓ No Critical Failures'}
+                  <div style={{ fontSize: 11, color: (predData?.plantData || DEMO_PRED_DATA.plantData).errorState ? T.red : T.green, fontWeight: 700, marginTop: 2 }}>
+                    {(predData?.plantData || DEMO_PRED_DATA.plantData).errorState ? '⚠ Failures Detected' : '✓ No Critical Failures'}
                   </div>
                 </>
-              )}
-              {!predData?.plantData && (
-                <div style={{ padding: '12px 16px', background: T.bgCard2, borderRadius: 8, border: `1px dashed ${T.border}` }}>
-                  <p style={{ fontSize: 11, color: T.textMuted, textAlign: 'center' }}>Upload CSV to<br />see live metrics</p>
-                </div>
               )}
             </div>
           </div>
@@ -717,7 +819,7 @@ export default function ReportBuilder() {
         )}
 
         {/* Footer */}
-        <div style={{ marginTop: 24, padding: '14px 20px', borderRadius: 10, background: T.bgCard2, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ marginTop: 24, padding: '14px 20px', borderRadius: 10, background: T.bgCard2, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <span style={{ fontSize: 10, color: T.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>
             FactoryPulse AI · Auto-generated · {generatedAt}
           </span>
