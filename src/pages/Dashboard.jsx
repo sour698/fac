@@ -133,7 +133,7 @@ export default function Dashboard() {
     setChatMsg("");
     setSending(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://fac-2.onrender.com", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
