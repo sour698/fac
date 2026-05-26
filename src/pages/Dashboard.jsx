@@ -4,6 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
+// Production data remains static for demo
 const productionData = [
   { time: "12 AM", actual: 200,  target: 300  },
   { time: "3 AM",  actual: 350,  target: 400  },
@@ -15,15 +16,17 @@ const productionData = [
   { time: "9 PM",  actual: 850,  target: 900  },
 ];
 
-const machines = [
-  { name: "CNC Machine 1",    status: "Running",     efficiency: 95, color: "#22c55e" },
-  { name: "CNC Machine 2",    status: "Running",     efficiency: 90, color: "#22c55e" },
-  { name: "Assembly Line 1",  status: "Running",     efficiency: 93, color: "#22c55e" },
-  { name: "Packaging Unit",   status: "Idle",        efficiency: 70, color: "#eab308" },
-  { name: "Quality Check",    status: "Maintenance", efficiency: 0,  color: "#ef4444" },
+// Default machine data (will be overwritten by localStorage if available)
+const defaultMachines = [
+  { id: "m1", name: "CNC Machine 1",    status: "Running",     efficiency: 95, color: "#22c55e", temperature: 72, lastMaintenance: "2025-05-10" },
+  { id: "m2", name: "CNC Machine 2",    status: "Running",     efficiency: 90, color: "#22c55e", temperature: 68, lastMaintenance: "2025-05-12" },
+  { id: "m3", name: "Assembly Line 1",  status: "Running",     efficiency: 93, color: "#22c55e", temperature: 65, lastMaintenance: "2025-05-08" },
+  { id: "m4", name: "Packaging Unit",   status: "Idle",        efficiency: 70, color: "#eab308", temperature: 45, lastMaintenance: "2025-04-28" },
+  { id: "m5", name: "Quality Check",    status: "Maintenance", efficiency: 0,  color: "#ef4444", temperature: 38, lastMaintenance: "2025-05-01" },
 ];
 
-const alertsData = [
+// Default alerts
+const defaultAlerts = [
   { icon: "⚠️", iconBg: "#ef4444", title: "High Temperature Detected",  desc: "Machine CNC-02 temperature above threshold",   time: "10:24 AM", badge: "High",   badgeBg: "#ef4444", read: false },
   { icon: "⚠️", iconBg: "#eab308", title: "Maintenance Required",        desc: "Packaging Unit requires scheduled maintenance",  time: "09:15 AM", badge: "Medium", badgeBg: "#d97706", read: false },
   { icon: "ℹ️", iconBg: "#3b82f6", title: "Low Efficiency Warning",      desc: "Assembly Line 1 efficiency dropped below 85%",   time: "08:45 AM", badge: "Low",    badgeBg: "#3b82f6", read: false },
@@ -43,22 +46,138 @@ const initChat = [
   { role: "bot", text: "Hello! I'm your FactoryPulse AI assistant. Ask me about your machines, production data, or maintenance schedules!" },
 ];
 
+// Helper function to load machines from localStorage (synced with Machine page)
+const loadMachinesFromStorage = () => {
+  const stored = localStorage.getItem("factoryMachines");
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) {
+      return [...defaultMachines];
+    }
+  }
+  return [...defaultMachines];
+};
+
+// Helper to save machines to localStorage
+const saveMachinesToStorage = (machines) => {
+  localStorage.setItem("factoryMachines", JSON.stringify(machines));
+};
+
+// Helper to load alerts from localStorage
+const loadAlertsFromStorage = () => {
+  const stored = localStorage.getItem("factoryAlerts");
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) {
+      return [...defaultAlerts];
+    }
+  }
+  return [...defaultAlerts];
+};
+
+const saveAlertsToStorage = (alerts) => {
+  localStorage.setItem("factoryAlerts", JSON.stringify(alerts));
+};
+
+// Calculate dynamic KPIs based on current machine states
+const calculateKPIs = (machines) => {
+  // Average efficiency (excluding maintenance machines? including 0% efficiency ones)
+  const runningMachines = machines.filter(m => m.status === "Running");
+  const allMachines = machines;
+  const avgEfficiency = allMachines.length > 0 
+    ? Math.round(allMachines.reduce((sum, m) => sum + m.efficiency, 0) / allMachines.length)
+    : 0;
+  
+  // Overall health score based on efficiency and status
+  const runningCount = runningMachines.length;
+  const maintenanceCount = machines.filter(m => m.status === "Maintenance").length;
+  const idleCount = machines.filter(m => m.status === "Idle").length;
+  
+  let healthScore = 100;
+  if (maintenanceCount > 0) healthScore -= maintenanceCount * 15;
+  if (idleCount > 0) healthScore -= idleCount * 5;
+  healthScore = Math.max(0, Math.min(100, healthScore));
+  
+  // Defect rate inversely related to avg efficiency
+  const defectRate = Math.max(0.5, Math.min(5, (100 - avgEfficiency) / 20)).toFixed(1);
+  
+  // Energy usage (mock calculation based on running machines)
+  const energyUsage = 1800 + (runningMachines.length * 200) + (idleCount * 50);
+  
+  return {
+    avgEfficiency,
+    healthScore,
+    defectRate: parseFloat(defectRate),
+    energyUsage,
+    runningCount,
+    maintenanceCount,
+    idleCount
+  };
+};
+
+// Generate dynamic alerts based on machine states
+const generateAlertsFromMachines = (machines, existingAlerts) => {
+  const newAlerts = [...existingAlerts.filter(a => a.title !== "System Alert")];
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  
+  // Check for machines in maintenance
+  machines.forEach(m => {
+    if (m.status === "Maintenance" && m.efficiency === 0) {
+      const existing = newAlerts.find(a => a.title === `⚠️ ${m.name} Under Maintenance`);
+      if (!existing) {
+        newAlerts.unshift({
+          icon: "🔧", iconBg: "#ef4444", 
+          title: `${m.name} Under Maintenance`, 
+          desc: `${m.name} is currently offline for maintenance`, 
+          time: timeStr, badge: "Critical", badgeBg: "#ef4444", read: false
+        });
+      }
+    } else if (m.status === "Idle" && m.efficiency < 80) {
+      const existing = newAlerts.find(a => a.title === `${m.name} Idle`);
+      if (!existing) {
+        newAlerts.unshift({
+          icon: "⏸️", iconBg: "#eab308", 
+          title: `${m.name} Idle`, 
+          desc: `${m.name} is idle. Efficiency at ${m.efficiency}%`, 
+          time: timeStr, badge: "Medium", badgeBg: "#d97706", read: false
+        });
+      }
+    } else if (m.efficiency < 85 && m.status === "Running") {
+      const existing = newAlerts.find(a => a.title === `Low Efficiency on ${m.name}`);
+      if (!existing) {
+        newAlerts.unshift({
+          icon: "📉", iconBg: "#f97316", 
+          title: `Low Efficiency on ${m.name}`, 
+          desc: `${m.name} efficiency dropped to ${m.efficiency}%`, 
+          time: timeStr, badge: "Warning", badgeBg: "#f97316", read: false
+        });
+      }
+    }
+  });
+  
+  // Keep only last 8 alerts
+  return newAlerts.slice(0, 8);
+};
+
 const EfficiencyBar = ({ value, color, darkMode }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
     <span style={{ color: darkMode ? "#e2e8f0" : "#475569", fontSize: 12, minWidth: 30 }}>{value}%</span>
     <div style={{ flex: 1, height: 6, background: darkMode ? "#1e293b" : "#e2e8f0", borderRadius: 3, overflow: "hidden", minWidth: 60 }}>
-      <div style={{ width: `${value}%`, height: "100%", background: color, borderRadius: 3, transition: "width 1s ease" }} />
+      <div style={{ width: `${value}%`, height: "100%", background: color, borderRadius: 3, transition: "width 0.5s ease" }} />
     </div>
   </div>
 );
 
-const StatCard = ({ icon, iconBg, label, value, change, positive, sparkColor, darkMode }) => (
+const StatCard = ({ icon, iconBg, label, value, unit, change, positive, sparkColor, darkMode }) => (
   <div style={{ background: darkMode ? "#0f172a" : "#ffffff", border: `1px solid ${darkMode ? "#1e293b" : "#e2e8f0"}`, borderRadius: 16, padding: "18px 20px", flex: "1 1 190px", minWidth: 0, display: "flex", alignItems: "flex-start", gap: 14 }}>
     <div style={{ width: 46, height: 46, borderRadius: 12, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{icon}</div>
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ color: darkMode ? "#94a3b8" : "#64748b", fontSize: 12, marginBottom: 3 }}>{label}</div>
-      <div style={{ color: darkMode ? "#f1f5f9" : "#1e293b", fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
-      <div style={{ color: positive ? "#22c55e" : "#ef4444", fontSize: 11, marginTop: 3 }}>{positive ? "↑" : "↓"} {change} from yesterday</div>
+      <div style={{ color: darkMode ? "#f1f5f9" : "#1e293b", fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{value}{unit && <span style={{ fontSize: 12, marginLeft: 2 }}>{unit}</span>}</div>
+      {change && <div style={{ color: positive ? "#22c55e" : "#ef4444", fontSize: 11, marginTop: 3 }}>{positive ? "↑" : "↓"} {change} from yesterday</div>}
     </div>
     <div style={{ width: 76, height: 38, flexShrink: 0 }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -81,19 +200,23 @@ const NotificationPanel = ({ alerts, onClose, onMarkAsRead, darkMode }) => {
           <div style={{ background: "#ef4444", borderRadius: 20, padding: "2px 8px", fontSize: 11, color: "#fff" }}>{unread} new</div>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
-          {alerts.map((alert, idx) => (
-            <div key={idx} style={{ padding: "14px 16px", borderBottom: `1px solid ${darkMode ? "#1e293b" : "#f1f5f9"}`, background: !alert.read ? (darkMode ? "rgba(99,102,241,0.1)" : "#eff6ff") : "transparent", cursor: "pointer" }} onClick={() => onMarkAsRead(idx)}>
-              <div style={{ display: "flex", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: alert.iconBg + "20", display: "flex", alignItems: "center", justifyContent: "center" }}>{alert.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: darkMode ? "#f1f5f9" : "#0f172a" }}>{alert.title}</div>
-                  <div style={{ fontSize: 11, color: darkMode ? "#94a3b8" : "#64748b", marginTop: 3 }}>{alert.desc}</div>
-                  <div style={{ fontSize: 10, color: darkMode ? "#475569" : "#94a3b8", marginTop: 5 }}>{alert.time}</div>
+          {alerts.length === 0 ? (
+            <div style={{ padding: "30px", textAlign: "center", color: darkMode ? "#94a3b8" : "#64748b", fontSize: 12 }}>No new alerts</div>
+          ) : (
+            alerts.map((alert, idx) => (
+              <div key={idx} style={{ padding: "14px 16px", borderBottom: `1px solid ${darkMode ? "#1e293b" : "#f1f5f9"}`, background: !alert.read ? (darkMode ? "rgba(99,102,241,0.1)" : "#eff6ff") : "transparent", cursor: "pointer" }} onClick={() => onMarkAsRead(idx)}>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: alert.iconBg + "20", display: "flex", alignItems: "center", justifyContent: "center" }}>{alert.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: darkMode ? "#f1f5f9" : "#0f172a" }}>{alert.title}</div>
+                    <div style={{ fontSize: 11, color: darkMode ? "#94a3b8" : "#64748b", marginTop: 3 }}>{alert.desc}</div>
+                    <div style={{ fontSize: 10, color: darkMode ? "#475569" : "#94a3b8", marginTop: 5 }}>{alert.time}</div>
+                  </div>
+                  {!alert.read && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#6366f1", marginTop: 8 }} />}
                 </div>
-                {!alert.read && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#6366f1", marginTop: 8 }} />}
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
         <div style={{ padding: "12px 16px", borderTop: `1px solid ${darkMode ? "#1e293b" : "#e2e8f0"}`, textAlign: "center" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#6366f1", fontSize: 12, cursor: "pointer" }}>Close</button>
@@ -111,11 +234,65 @@ export default function Dashboard() {
   const [chatMsg, setChatMsg] = useState("");
   const [messages, setMessages] = useState(initChat);
   const [darkMode, setDarkMode] = useState(true);
-  const [alerts, setAlerts] = useState(alertsData);
+  const [alerts, setAlerts] = useState(() => loadAlertsFromStorage());
+  const [machines, setMachines] = useState(() => loadMachinesFromStorage());
   const [showNotifications, setShowNotifications] = useState(false);
   const [sending, setSending] = useState(false);
+  const [kpis, setKpis] = useState(() => calculateKPIs(loadMachinesFromStorage()));
   const chatEndRef = useRef(null);
   const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
+
+  // Listen for storage changes (when Machines page updates machines)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === "factoryMachines") {
+        const updatedMachines = loadMachinesFromStorage();
+        setMachines(updatedMachines);
+        const newKpis = calculateKPIs(updatedMachines);
+        setKpis(newKpis);
+        // Generate new alerts based on updated machines
+        const newAlerts = generateAlertsFromMachines(updatedMachines, alerts);
+        setAlerts(newAlerts);
+        saveAlertsToStorage(newAlerts);
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [alerts]);
+
+  // Poll for machine updates (in case same tab updates)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentMachines = loadMachinesFromStorage();
+      if (JSON.stringify(currentMachines) !== JSON.stringify(machines)) {
+        setMachines(currentMachines);
+        const newKpis = calculateKPIs(currentMachines);
+        setKpis(newKpis);
+        const newAlerts = generateAlertsFromMachines(currentMachines, alerts);
+        setAlerts(newAlerts);
+        saveAlertsToStorage(newAlerts);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [machines, alerts]);
+
+  // Initial sync
+  useEffect(() => {
+    const initialMachines = loadMachinesFromStorage();
+    if (initialMachines.length === 0) {
+      saveMachinesToStorage(defaultMachines);
+      setMachines(defaultMachines);
+      setKpis(calculateKPIs(defaultMachines));
+    } else {
+      setKpis(calculateKPIs(initialMachines));
+    }
+    const initialAlerts = loadAlertsFromStorage();
+    if (initialAlerts.length === 0) {
+      const generated = generateAlertsFromMachines(initialMachines, defaultAlerts);
+      setAlerts(generated);
+      saveAlertsToStorage(generated);
+    }
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -132,24 +309,18 @@ export default function Dashboard() {
     setMessages(prev => [...prev, { role: "user", text: userMsg }]);
     setChatMsg("");
     setSending(true);
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 400,
-          system: `You are FactoryPulse AI, embedded in a manufacturing dashboard. The factory has 5 machines (CNC Machine 1 & 2 running at 95/90%, Assembly Line 1 at 93%, Packaging Unit idle at 70%, Quality Check in maintenance). Today's production reached 1300 units vs 1280 target. Machine efficiency is 87%, energy usage 2847 kWh, defect rate 2.3%. Be concise and helpful.`,
-          messages: [{ role: "user", content: userMsg }],
-        }),
-      });
-      const data = await res.json();
-      const answer = data.content?.[0]?.text || "I'm here to help! Ask me about machines, production, or maintenance.";
-      setMessages(prev => [...prev, { role: "bot", text: answer }]);
-    } catch {
-      setMessages(prev => [...prev, { role: "bot", text: "Connection issue. Please try again." }]);
-    }
-    setSending(false);
+    
+    // Simulate AI response with real machine data
+    setTimeout(() => {
+      const runningMachines = machines.filter(m => m.status === "Running").length;
+      const avgEff = kpis.avgEfficiency;
+      let response = `Current factory status: ${runningMachines}/${machines.length} machines running. Average efficiency ${avgEff}%. `;
+      if (kpis.maintenanceCount > 0) response += `${kpis.maintenanceCount} machine(s) in maintenance. `;
+      if (kpis.idleCount > 0) response += `${kpis.idleCount} machine(s) idle. `;
+      response += `Energy usage: ${kpis.energyUsage} kWh, Defect rate: ${kpis.defectRate}%. Need specific details?`;
+      setMessages(prev => [...prev, { role: "bot", text: response }]);
+      setSending(false);
+    }, 800);
   };
 
   const handleNavClick = (item) => {
@@ -165,7 +336,9 @@ export default function Dashboard() {
   };
 
   const markAlertAsRead = (index) => {
-    setAlerts(prev => prev.map((a, i) => i === index ? { ...a, read: true } : a));
+    const newAlerts = alerts.map((a, i) => i === index ? { ...a, read: true } : a);
+    setAlerts(newAlerts);
+    saveAlertsToStorage(newAlerts);
   };
 
   const unreadCount = alerts.filter(a => !a.read).length;
@@ -184,8 +357,8 @@ export default function Dashboard() {
       <style>{`
         *{box-sizing:border-box}
         ::-webkit-scrollbar{width:4px;height:4px}
-        ::-webkit-scrollbar-track{background:${darkMode?"#0f172a":"#e2e8f0"}}
-        ::-webkit-scrollbar-thumb{background:${darkMode?"#1e293b":"#cbd5e1"};border-radius:4px}
+        ::-webkit-scrollbar-track{background:${darkMode ? "#0f172a" : "#e2e8f0"}}
+        ::-webkit-scrollbar-thumb{background:${darkMode ? "#1e293b" : "#cbd5e1"};border-radius:4px}
         @media(max-width:768px){
           .sidebar{position:fixed!important;top:0;left:0;height:100%!important;transform:translateX(-100%);transition:transform .3s!important;z-index:1000}
           .sidebar.open{transform:translateX(0)!important}
@@ -195,7 +368,7 @@ export default function Dashboard() {
           .mid-row{flex-direction:column!important}
           .bot-row{flex-direction:column!important}
         }
-        .nav-item:hover{background:${darkMode?"#1e293b":"#f1f5f9"}!important}
+        .nav-item:hover{background:${darkMode ? "#1e293b" : "#f1f5f9"}!important}
       `}</style>
 
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 40 }} />}
@@ -218,14 +391,16 @@ export default function Dashboard() {
           ))}
         </nav>
         <div style={{ padding: "12px 14px", borderTop: `1px solid ${borderColor}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: textMuted, marginBottom: 10 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} /> All Systems Operational</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: textMuted, marginBottom: 10 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: kpis.maintenanceCount > 0 ? "#ef4444" : "#22c55e" }} /> 
+            {kpis.maintenanceCount > 0 ? `${kpis.maintenanceCount} Machine(s) in Maintenance` : "All Systems Operational"}
+          </div>
           <button onClick={handleLogout} style={{ width: "100%", padding: "8px", background: darkMode ? "#1e293b" : "#f1f5f9", border: "none", borderRadius: 8, color: "#ef4444", fontSize: 12, cursor: "pointer", fontWeight: 500 }}>🚪 Logout</button>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main Content */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-        {/* Header */}
         <header style={{ background: headerBg, borderBottom: `1px solid ${borderColor}`, padding: "12px 20px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: textColor, display: "flex" }}>☰</button>
           <div style={{ flex: 1 }}>
@@ -245,17 +420,16 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Content */}
         <main style={{ flex: 1, overflowY: "auto", padding: "18px 18px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Stats */}
+          {/* Dynamic Stats Cards based on real machine data */}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <StatCard icon="🏭" iconBg="rgba(99,102,241,.18)" label="Total Production" value="1,300" change="8.5%" positive={true} sparkColor="#6366f1" darkMode={darkMode} />
-            <StatCard icon="📈" iconBg="rgba(34,197,94,.18)" label="Machine Efficiency" value="87%" change="3.2%" positive={true} sparkColor="#22c55e" darkMode={darkMode} />
-            <StatCard icon="⚡" iconBg="rgba(234,179,8,.18)" label="Energy Usage" value="2847" change="4.7%" positive={false} sparkColor="#eab308" darkMode={darkMode} />
-            <StatCard icon="🛡️" iconBg="rgba(139,92,246,.18)" label="Defect Rate" value="2.3%" change="0.6%" positive={false} sparkColor="#a78bfa" darkMode={darkMode} />
+            <StatCard icon="🏭" iconBg="rgba(99,102,241,.18)" label="Total Production" value="1,300" unit="units" change="8.5%" positive={true} sparkColor="#6366f1" darkMode={darkMode} />
+            <StatCard icon="📈" iconBg="rgba(34,197,94,.18)" label="Machine Efficiency" value={kpis.avgEfficiency} unit="%" change="3.2%" positive={true} sparkColor="#22c55e" darkMode={darkMode} />
+            <StatCard icon="⚡" iconBg="rgba(234,179,8,.18)" label="Energy Usage" value={kpis.energyUsage} unit="kWh" change="4.7%" positive={false} sparkColor="#eab308" darkMode={darkMode} />
+            <StatCard icon="🛡️" iconBg="rgba(139,92,246,.18)" label="Defect Rate" value={kpis.defectRate} unit="%" change="0.6%" positive={false} sparkColor="#a78bfa" darkMode={darkMode} />
           </div>
 
-          {/* Mid row */}
+          {/* Mid row - Production Chart & Machine Status (dynamic) */}
           <div className="mid-row" style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             <div style={{ flex: "2 1 340px", background: cardBg, border: `1px solid ${borderColor}`, borderRadius: 14, padding: "18px 16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
@@ -275,27 +449,28 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
 
+            {/* Machine Status Panel - Dynamically updated from localStorage */}
             <div style={{ flex: "1 1 260px", background: cardBg, border: `1px solid ${borderColor}`, borderRadius: 14, padding: "18px 16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>⚙️ Machine Status</div>
-                <span style={{ color: "#6366f1", fontSize: 12, cursor: "pointer" }} onClick={() => navigate("/machines")}>View All</span>
+                <span style={{ color: "#6366f1", fontSize: 12, cursor: "pointer" }} onClick={() => { navigate("/machines"); setActiveNav("Machines"); }}>View All</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 88px 1fr", gap: "4px 8px", fontSize: 11, color: textMuted, paddingBottom: 8, borderBottom: `1px solid ${borderColor}`, marginBottom: 4 }}>
                 <span>Machine</span><span>Status</span><span>Efficiency</span>
               </div>
               {machines.map((m, i) => (
-                <div key={m.name} style={{ display: "grid", gridTemplateColumns: "1fr 88px 1fr", gap: "4px 8px", alignItems: "center", padding: "9px 0", borderBottom: i < machines.length - 1 ? `1px solid ${borderColor}` : "none" }}>
+                <div key={m.id || m.name} style={{ display: "grid", gridTemplateColumns: "1fr 88px 1fr", gap: "4px 8px", alignItems: "center", padding: "9px 0", borderBottom: i < machines.length - 1 ? `1px solid ${borderColor}` : "none" }}>
                   <span style={{ fontSize: 12, color: textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: m.color }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: m.color }} />{m.status}
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: m.color || (m.status === "Running" ? "#22c55e" : m.status === "Idle" ? "#eab308" : "#ef4444") }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: m.color || (m.status === "Running" ? "#22c55e" : m.status === "Idle" ? "#eab308" : "#ef4444") }} />{m.status}
                   </span>
-                  <EfficiencyBar value={m.efficiency} color={m.color} darkMode={darkMode} />
+                  <EfficiencyBar value={m.efficiency} color={m.color || (m.status === "Running" ? "#22c55e" : m.status === "Idle" ? "#eab308" : "#ef4444")} darkMode={darkMode} />
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Bottom row */}
+          {/* Bottom row - Alerts & AI Assistant */}
           <div className="bot-row" style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 300px", background: cardBg, border: `1px solid ${borderColor}`, borderRadius: 14, padding: "18px 16px" }}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>🔔 Recent Alerts</div>
@@ -303,7 +478,7 @@ export default function Dashboard() {
                 <div key={i} style={{ display: "flex", gap: 10, padding: "9px 0", borderBottom: i < 3 ? `1px solid ${borderColor}` : "none" }}>
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: a.iconBg + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>{a.icon}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>{a.title}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: textColor }}>{a.title}</div>
                     <div style={{ fontSize: 11, color: textMuted }}>{a.desc}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -312,6 +487,9 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
+              {alerts.length === 0 && (
+                <div style={{ textAlign: "center", padding: "20px", color: textMuted, fontSize: 12 }}>No recent alerts</div>
+              )}
             </div>
 
             <div style={{ flex: "1 1 300px", background: cardBg, border: `1px solid ${borderColor}`, borderRadius: 14, padding: "18px 16px", display: "flex", flexDirection: "column" }}>
@@ -331,7 +509,9 @@ export default function Dashboard() {
                   <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                     <div style={{ width: 28, height: 28, borderRadius: "50%", background: darkMode ? "#1e293b" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🤖</div>
                     <div style={{ background: darkMode ? "#1e293b" : "#f1f5f9", borderRadius: "11px 11px 11px 2px", padding: "8px 12px", fontSize: 12, display: "flex", gap: 4, alignItems: "center" }}>
-                      {[0,1,2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#6366f1", display: "inline-block", animation: `pulse 1.2s ${i*0.2}s ease-in-out infinite` }} />)}
+                      <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#6366f1", display: "inline-block", animation: "pulse 1.2s 0s ease-in-out infinite" }} />
+                      <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#6366f1", display: "inline-block", animation: "pulse 1.2s 0.2s ease-in-out infinite" }} />
+                      <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#6366f1", display: "inline-block", animation: "pulse 1.2s 0.4s ease-in-out infinite" }} />
                     </div>
                   </div>
                 )}
