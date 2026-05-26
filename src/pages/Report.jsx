@@ -12,93 +12,8 @@ import {
   Cpu, Zap, Activity, ThermometerSun, Gauge, BarChart3
 } from 'lucide-react';
 
-// ─── API Base URL ─────────────────────────────────────────────────────────────
-const USE_BACKEND = true;
-const API_BASE = 'https://fac-2.onrender.com';
-
-// ─── DEMO DATA (Only shown after upload) ─────────────────────────────────────
-const DEMO_DASH_DATA = {
-  has_data: true,
-  stats: {
-    totalProduction: 12450,
-    machineEfficiency: 87.3,
-    defectRate: 2.8,
-    energyUsage: 2847,
-  },
-  productionData: [
-    { time: "12 AM", actual: 320, target: 300 },
-    { time: "3 AM",  actual: 380, target: 400 },
-    { time: "6 AM",  actual: 520, target: 550 },
-    { time: "9 AM",  actual: 780, target: 850 },
-    { time: "12 PM", actual: 1120, target: 1200 },
-    { time: "3 PM",  actual: 1340, target: 1280 },
-    { time: "6 PM",  actual: 1080, target: 1150 },
-    { time: "9 PM",  actual: 820, target: 900 },
-  ],
-  machines: [
-    { name: "CNC Machine 1",   status: "Running",     efficiency: 95, color: "#3fb950" },
-    { name: "CNC Machine 2",   status: "Running",     efficiency: 90, color: "#3fb950" },
-    { name: "Assembly Line 1", status: "Running",     efficiency: 93, color: "#3fb950" },
-    { name: "Packaging Unit",  status: "Idle",        efficiency: 70, color: "#d29922" },
-    { name: "Quality Check",   status: "Maintenance", efficiency: 0,  color: "#f85149" },
-    { name: "Transport Bot",   status: "Running",     efficiency: 88, color: "#3fb950" },
-  ],
-  alertsData: [
-    { icon: "⚠️", badgeBg: "#f85149", title: "High Temperature Detected",  desc: "CNC-02 temperature above 85°C threshold",   time: "10:24 AM", badge: "High",   read: false },
-    { icon: "⚠️", badgeBg: "#d29922", title: "Maintenance Required",        desc: "Packaging Unit requires scheduled lubrication",  time: "09:15 AM", badge: "Medium", read: false },
-    { icon: "ℹ️", badgeBg: "#388bfd", title: "Low Efficiency Warning",      desc: "Assembly Line 1 efficiency dropped below 85%",   time: "08:45 AM", badge: "Low",    read: false },
-    { icon: "✅", badgeBg: "#3fb950", title: "Daily Report Generated",      desc: "Daily production report is ready to view",       time: "07:30 AM", badge: "Info",   read: true  },
-    { icon: "⚠️", badgeBg: "#f85149", title: "Vibration Anomaly",           desc: "Machine Bearing shows unusual pattern",        time: "06:45 AM", badge: "High",   read: false },
-  ],
-};
-
-const DEMO_PRED_DATA = {
-  has_data: true,
-  plantData: {
-    avgTemp: 72.4,
-    maxVibration: 3.2,
-    avgPressure: 145.6,
-    overallEfficiency: 86.4,
-    maintenanceOverdueCount: 2,
-    errorState: false,
-    warningState: true,
-    timestamp: "2024-01-15 14:30",
-  },
-  heatmapData: [
-    { week: "W1", temp: 68, vib: 2.4, press: 138, eff: 84 },
-    { week: "W2", temp: 71, vib: 2.7, press: 142, eff: 86 },
-    { week: "W3", temp: 73, vib: 2.9, press: 145, eff: 87 },
-    { week: "W4", temp: 72, vib: 3.1, press: 146, eff: 86 },
-    { week: "W5", temp: 74, vib: 3.0, press: 144, eff: 88 },
-    { week: "W6", temp: 75, vib: 3.2, press: 147, eff: 87 },
-    { week: "W7", temp: 72, vib: 2.8, press: 143, eff: 86 },
-    { week: "W8", temp: 71, vib: 2.6, press: 141, eff: 85 },
-  ],
-};
-
-const DEMO_UPLOAD_RESULT = {
-  success: true,
-  filename: "factory_data_sample.csv",
-  rows: 1250,
-  predictions: {
-    failure_count: 42,
-    no_failure_count: 1208,
-  },
-  anomalies: {
-    anomaly_count: 87,
-    normal_count: 1163,
-  },
-  summary: {
-    numeric_stats: {
-      temperature: { mean: 72.4, std: 5.2, min: 58, max: 89, "50%": 73 },
-      vibration: { mean: 2.8, std: 0.6, min: 1.2, max: 4.5, "50%": 2.7 },
-      pressure: { mean: 144.2, std: 8.3, min: 118, max: 168, "50%": 145 },
-      rpm: { mean: 2850, std: 320, min: 2100, max: 3450, "50%": 2880 },
-      torque: { mean: 47.3, std: 6.1, min: 32, max: 62, "50%": 48 },
-      efficiency: { mean: 86.4, std: 4.8, min: 72, max: 96, "50%": 87 },
-    },
-  },
-};
+// ─── API Base URL ──────────────────────────────────────────────────────────────
+const API_BASE = 'http://localhost:8000';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const T = {
@@ -122,6 +37,15 @@ const T = {
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 const fmt = (v, d = 1) => (typeof v === 'number' && !isNaN(v) ? v.toFixed(d) : '—');
+
+const severityColor = s =>
+  s === 'high' ? T.red : s === 'medium' ? T.yellow : T.green;
+
+const statusColor = s =>
+  s === 'overdue' ? T.red : s === 'monitoring' ? T.yellow : s === 'open' ? T.orange : T.green;
+
+const priorityColor = p =>
+  p === 'critical' ? T.red : p === 'high' ? T.orange : p === 'medium' ? T.yellow : T.green;
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }) => {
@@ -186,13 +110,14 @@ const SectionHeader = ({ icon, title, visible, onToggle, onRemove }) => (
 
 // ────────────────────────── SECTION COMPONENTS ────────────────────────────────
 
-// KPI Summary
+// KPI Summary — uses /dashboard-data stats + /prediction-data plantData
 const KPIGrid = ({ data }) => {
-  const stats = data.dashData?.stats || {};
-  const plant = data.predData?.plantData || {};
+  const { dashData, predData } = data;
+  const stats = dashData?.stats || {};
+  const plant = predData?.plantData || {};
 
   const cards = [
-    { label: 'Total Production', value: stats.totalProduction?.toLocaleString() || '—', icon: BarChart3, color: T.accent },
+    { label: 'Total Samples', value: stats.totalProduction ?? '—', icon: BarChart3, color: T.accent },
     { label: 'Machine Efficiency', value: stats.machineEfficiency != null ? `${fmt(stats.machineEfficiency)}%` : '—', icon: Cpu, color: T.green },
     { label: 'Defect Rate', value: stats.defectRate != null ? `${fmt(stats.defectRate)}%` : '—', icon: AlertTriangle, color: T.red },
     { label: 'Energy Usage', value: stats.energyUsage != null ? `${stats.energyUsage} kW` : '—', icon: Zap, color: T.yellow },
@@ -207,10 +132,10 @@ const KPIGrid = ({ data }) => {
   );
 };
 
-// Production Chart
+// Production Chart — uses /dashboard-data productionData
 const ProductionChart = ({ data }) => {
   const chartData = data.dashData?.productionData || [];
-  if (!chartData.length) return <EmptyState msg="Upload a CSV file to see production data" />;
+  if (!chartData.length) return <EmptyState msg="No production data available" />;
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={chartData} barGap={3}>
@@ -226,10 +151,10 @@ const ProductionChart = ({ data }) => {
   );
 };
 
-// Sensor Trends
+// Sensor / Heatmap trends — uses /prediction-data heatmapData
 const SensorChart = ({ data }) => {
   const chartData = data.predData?.heatmapData || [];
-  if (!chartData.length) return <EmptyState msg="Upload a CSV file to see sensor trends" />;
+  if (!chartData.length) return <EmptyState msg="No sensor trend data available" />;
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={chartData}>
@@ -240,18 +165,18 @@ const SensorChart = ({ data }) => {
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ color: T.textSub, fontSize: 11 }} />
         <Line yAxisId="left"  type="monotone" dataKey="temp"  name="Temp (°C)"  stroke={T.red}    strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        <Line yAxisId="right" type="monotone" dataKey="vib"   name="Vibration"  stroke={T.yellow} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        <Line yAxisId="left"  type="monotone" dataKey="press" name="Pressure"   stroke={T.accent} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+        <Line yAxisId="right" type="monotone" dataKey="vib"   name="Torque/10"  stroke={T.yellow} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+        <Line yAxisId="left"  type="monotone" dataKey="press" name="Speed/30"   stroke={T.accent} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
         <Line yAxisId="left"  type="monotone" dataKey="eff"   name="Eff (%)"    stroke={T.green}  strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
       </LineChart>
     </ResponsiveContainer>
   );
 };
 
-// Machine Status
+// Machine Status / Risk — uses /dashboard-data machines
 const MachineStatus = ({ data }) => {
   const machines = data.dashData?.machines || [];
-  if (!machines.length) return <EmptyState msg="Upload a CSV file to see machine status" />;
+  if (!machines.length) return <EmptyState msg="No machine data available" />;
 
   const pieData = machines.map(m => ({
     name: m.name, value: Math.round(m.efficiency),
@@ -292,10 +217,10 @@ const MachineStatus = ({ data }) => {
   );
 };
 
-// Alerts Table
+// Alerts — uses /dashboard-data alertsData
 const AlertsTable = ({ data }) => {
   const alerts = data.dashData?.alertsData || [];
-  if (!alerts.length) return <EmptyState msg="Upload a CSV file to see alerts" />;
+  if (!alerts.length) return <EmptyState msg="No alerts available" />;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {alerts.map((a, i) => (
@@ -320,11 +245,11 @@ const AlertsTable = ({ data }) => {
   );
 };
 
-// Failure Predictions
+// Failure Predictions summary — uses uploadResult predictions
 const FailureSummary = ({ data }) => {
   const pred = data.uploadResult?.predictions;
   const anom = data.uploadResult?.anomalies;
-  if (!pred) return <EmptyState msg="Upload a CSV file to see failure predictions" />;
+  if (!pred) return <EmptyState msg="Upload a dataset to view failure predictions" />;
 
   const total = pred.failure_count + pred.no_failure_count;
   const rate = total > 0 ? (pred.failure_count / total * 100).toFixed(1) : 0;
@@ -365,13 +290,13 @@ const FailureSummary = ({ data }) => {
   );
 };
 
-// Dataset Info
+// Dataset Info — uses uploadResult summary
 const DatasetInfo = ({ data }) => {
   const res = data.uploadResult;
-  if (!res) return <EmptyState msg="Upload a CSV file to view column statistics" />;
+  if (!res) return <EmptyState msg="Upload a dataset to view column statistics" />;
   const numStats = res.summary?.numeric_stats || {};
   const keys = Object.keys(numStats).filter(k => !k.startsWith('_')).slice(0, 8);
-  if (!keys.length) return <EmptyState msg="No numeric columns found in uploaded file" />;
+  if (!keys.length) return <EmptyState msg="No numeric columns found" />;
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -414,10 +339,10 @@ const DatasetInfo = ({ data }) => {
   );
 };
 
-// Plant Status
+// Plant Status — uses /prediction-data plantData
 const PlantStatus = ({ data }) => {
   const plant = data.predData?.plantData;
-  if (!plant) return <EmptyState msg="Upload a CSV file to see plant health status" />;
+  if (!plant) return <EmptyState msg="No plant status data available" />;
 
   const indicators = [
     { label: 'Avg Temp',           value: `${fmt(plant.avgTemp)}°C`,    color: plant.avgTemp > 80 ? T.red : T.green },
@@ -449,8 +374,8 @@ const PlantStatus = ({ data }) => {
 
 // Empty state
 const EmptyState = ({ msg }) => (
-  <div style={{ padding: '40px 24px', textAlign: 'center', color: T.textMuted, fontSize: 13, fontStyle: 'italic' }}>
-    📁 {msg}
+  <div style={{ padding: '24px', textAlign: 'center', color: T.textMuted, fontSize: 13, fontStyle: 'italic' }}>
+    {msg}
   </div>
 );
 
@@ -480,11 +405,12 @@ export default function ReportBuilder() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [period, setPeriod] = useState(new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
   const [generatedAt] = useState(new Date().toLocaleString());
+  const [saved, setSaved] = useState(false);
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const fileInputRef = useRef(null);
 
-  // ── Fetch data from backend ─────────────────────────────────────────────────
+  // ── Fetch data (backend optional) ──────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -498,58 +424,36 @@ export default function ReportBuilder() {
       setDashData(dJson.has_data ? dJson : null);
       setPredData(pJson.has_data ? pJson : null);
     } catch (e) {
-      console.error('Backend fetch failed:', e);
-      setError('Backend not available. Please upload a CSV file to see demo data.');
+      // Backend not available — run in frontend-only mode with sample data
+      setDashData(null);
+      setPredData(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { 
-    fetchAll(); 
-  }, [fetchAll]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // ── Upload CSV ─────────────────────────────────────────────────────────────
+  // ── Upload CSV (frontend parse only when no backend) ────────────────────────
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     setUploading(true);
     setError(null);
-    
     try {
       const form = new FormData();
       form.append('file', file);
       const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
       const json = await res.json();
-      
       if (json.success) {
         setUploadResult(json);
-        // After successful upload, load demo data to visualize the results
-        setDashData(DEMO_DASH_DATA);
-        setPredData(DEMO_PRED_DATA);
-        setError(null);
+        await fetchAll();
       } else {
-        // If backend upload fails, still show demo data based on the uploaded file
-        setUploadResult({
-          ...DEMO_UPLOAD_RESULT,
-          filename: file.name,
-          rows: Math.floor(Math.random() * 2000) + 500,
-        });
-        setDashData(DEMO_DASH_DATA);
-        setPredData(DEMO_PRED_DATA);
-        setError('Using demo visualization for uploaded file (backend processing unavailable)');
+        setError(`Upload failed: ${json.error}`);
       }
-    } catch (err) {
-      // Backend not available - show demo data as fallback
-      setUploadResult({
-        ...DEMO_UPLOAD_RESULT,
-        filename: file.name,
-        rows: Math.floor(Math.random() * 2000) + 500,
-      });
-      setDashData(DEMO_DASH_DATA);
-      setPredData(DEMO_PRED_DATA);
-      setError('Backend unavailable. Showing demo visualization for: ' + file.name);
+    } catch (e) {
+      // Backend not available — show friendly message
+      setUploadResult({ filename: file.name });
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -575,7 +479,7 @@ export default function ReportBuilder() {
 
   const removedSections = ALL_SECTIONS.filter(a => !sections.find(s => s.id === a.id));
   const reportData = { dashData, predData, uploadResult };
-  const hasData = !!(dashData || uploadResult);
+  const hasData = !!(dashData?.has_data || predData?.has_data || uploadResult);
 
   return (
     <div style={{ minHeight: '100vh', background: T.bg, fontFamily: "'Inter', 'DM Sans', sans-serif", color: T.text }}>
@@ -586,7 +490,6 @@ export default function ReportBuilder() {
         ::-webkit-scrollbar-track{background:${T.bg}}
         ::-webkit-scrollbar-thumb{background:${T.border};border-radius:4px}
         @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         .sec{animation:fadeUp .3s ease-out both}
         @media print{
           .no-print{display:none!important}
@@ -601,15 +504,15 @@ export default function ReportBuilder() {
         position: 'sticky', top: 0, zIndex: 100,
         background: T.bgCard + 'f2', backdropFilter: 'blur(16px)',
         borderBottom: `1px solid ${T.border}`,
-        padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 200 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
           <div style={{ width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#388bfd,#6e40c9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Factory size={18} color="#fff" />
           </div>
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: T.text }}>FactoryPulse Report Builder</p>
-            <p style={{ fontSize: 10, color: T.textMuted }}>Upload CSV to generate report</p>
+            <p style={{ fontSize: 10, color: T.textMuted }}>Live data from backend · Drag to reorder · Export to PDF</p>
           </div>
         </div>
 
@@ -619,8 +522,11 @@ export default function ReportBuilder() {
             <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Loading...
           </div>
         )}
-        {!loading && hasData && uploadResult && (
-          <span style={{ fontSize: 11, color: T.green }}>● Data loaded: {uploadResult.filename}</span>
+        {!loading && !hasData && !error && (
+          <span style={{ fontSize: 11, color: T.yellow }}>⚠ No dataset loaded</span>
+        )}
+        {!loading && hasData && (
+          <span style={{ fontSize: 11, color: T.green }}>● Live data</span>
         )}
 
         <button onClick={fetchAll} style={{
@@ -709,8 +615,8 @@ export default function ReportBuilder() {
           padding: '24px 28px', marginBottom: 16,
           boxShadow: '0 4px 24px rgba(0,0,0,.3)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 8, background: 'linear-gradient(135deg,#388bfd,#6e40c9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Factory size={18} color="#fff" />
@@ -749,35 +655,17 @@ export default function ReportBuilder() {
                   </div>
                 </>
               )}
-              {!predData && uploadResult && (
+              {!predData?.plantData && (
                 <div style={{ padding: '12px 16px', background: T.bgCard2, borderRadius: 8, border: `1px dashed ${T.border}` }}>
-                  <p style={{ fontSize: 11, color: T.textMuted, textAlign: 'center' }}>Data loaded from<br />{uploadResult.filename}</p>
+                  <p style={{ fontSize: 11, color: T.textMuted, textAlign: 'center' }}>Upload CSV to<br />see live metrics</p>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Upload prompt if no data */}
-        {!uploadResult && (
-          <div style={{
-            background: T.bgCard2, border: `2px dashed ${T.border}`, borderRadius: 12,
-            padding: '48px 24px', textAlign: 'center', marginBottom: 16,
-          }}>
-            <Upload size={48} color={T.textMuted} style={{ marginBottom: 16, opacity: 0.5 }} />
-            <h3 style={{ fontSize: 16, color: T.text, marginBottom: 8 }}>No Data Loaded</h3>
-            <p style={{ fontSize: 12, color: T.textMuted, marginBottom: 16 }}>Upload a CSV file to generate your manufacturing report</p>
-            <button onClick={() => fileInputRef.current?.click()} style={{
-              padding: '10px 20px', borderRadius: 8, background: T.accent, border: 'none',
-              color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            }}>
-              Upload CSV File
-            </button>
-          </div>
-        )}
-
-        {/* Draggable sections - only show if data is loaded */}
-        {uploadResult && sections.map((sec, idx) => {
+        {/* Draggable sections */}
+        {sections.map((sec, idx) => {
           const Comp = sec.component;
           return (
             <div
@@ -813,7 +701,7 @@ export default function ReportBuilder() {
         })}
 
         {/* Add back */}
-        {uploadResult && removedSections.length > 0 && (
+        {removedSections.length > 0 && (
           <div className="no-print" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
             {removedSections.map(s => (
               <button key={s.id} onClick={() => addSection(s)} style={{
@@ -829,14 +717,12 @@ export default function ReportBuilder() {
         )}
 
         {/* Footer */}
-        {uploadResult && (
-          <div style={{ marginTop: 24, padding: '14px 20px', borderRadius: 10, background: T.bgCard2, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <span style={{ fontSize: 10, color: T.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>
-              FactoryPulse AI · Auto-generated · {generatedAt}
-            </span>
-            <span style={{ fontSize: 10, color: T.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>Page 1 of 1</span>
-          </div>
-        )}
+        <div style={{ marginTop: 24, padding: '14px 20px', borderRadius: 10, background: T.bgCard2, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 10, color: T.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>
+            FactoryPulse AI · Auto-generated · {generatedAt}
+          </span>
+          <span style={{ fontSize: 10, color: T.textMuted, fontFamily: "'JetBrains Mono',monospace" }}>Page 1 of 1</span>
+        </div>
       </div>
     </div>
   );
