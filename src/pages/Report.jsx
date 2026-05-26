@@ -13,8 +13,8 @@ import {
 } from 'lucide-react';
 
 // ─── API Base URL (disabled for demo) ─────────────────────────────────────────
-const USE_BACKEND = false; // Set to true if you have a backend running
-const API_BASE = 'http://localhost:8000';
+const USE_BACKEND = true; // Set to true if you have a backend running
+const API_BASE = 'https://fac-2.onrender.com';
 
 // ─── DEMO DATA (Fallback when no backend) ─────────────────────────────────────
 const DEMO_DASH_DATA = {
